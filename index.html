@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>System Failure</title>
+<style>
+  :root { --bg:#000; --term:#ff3333; --white:#fff; --blue:#0000aa; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+               background:var(--bg); color:var(--white);
+               font-family: "Courier New", Courier, monospace;
+               user-select:none; -webkit-user-select:none; touch-action:none; }
+  
+  #container { position:relative; width:100%; height:100%; }
+
+  #intro { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+           background:#000; z-index:100; font-size:24px; font-weight:bold;
+           color:#fff; text-shadow:0 0 10px #fff; transition:opacity 0.5s; }
+  #intro.fade { opacity:0; pointer-events:none; }
+
+  #terminal { position:absolute; inset:0; padding:20px; font-size:14px;
+              line-height:1.4; color:var(--term); white-space:pre-wrap;
+              display:none; z-index:90; overflow:hidden; text-shadow:0 0 5px var(--term); }
+  .eye { display:block; text-align:center; font-size:40px; color:#fff; margin-top:20px; }
+  .alert { display:block; text-align:center; font-size:20px; color:#fff; margin-top:10px; letter-spacing:2px; }
+
+  #bsod { position:absolute; inset:0; background:var(--blue); color:var(--white);
+          display:none; z-index:200; padding:20px; flex-direction:column;
+          align-items:center; justify-content:center; font-family:"Courier New", monospace; }
+  
+  .bsod-box { border:2px solid var(--white); padding:20px; max-width:600px; width:100%;
+              background:var(--blue); }
+  
+  .bsod-header { background:var(--white); color:var(--blue); text-align:center;
+                 font-weight:bold; padding:2px 0; margin:-20px -20px 20px -20px;
+                 font-size:16px; }
+  
+  .bsod-text { font-size:14px; line-height:1.5; margin-bottom:20px; text-align:justify; }
+  .bsod-text a { color: var(--white); font-weight: bold; text-decoration: underline; }
+  
+  .input-group { display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+  #pass { width:100%; padding:10px; font-family:inherit; font-size:16px;
+          border:none; outline:none; background:var(--white); color:#000; }
+  #unlock { padding:10px; background:#ccc; color:#000; border:2px solid #fff;
+            font-family:inherit; font-size:16px; cursor:pointer; font-weight:bold; }
+  #unlock:active { background:#999; }
+
+  #warning { position:absolute; inset:0; background:rgba(0,0,0,0.9); z-index:999;
+             display:none; align-items:center; justify-content:center;
+             color:#ff3333; font-size:24px; text-align:center; padding:20px;
+             font-weight:bold; text-shadow:0 0 10px #ff0000; }
+  #warning.show { display:flex; }
+
+  #unlocked { position:absolute; inset:0; background:#fff; color:#000; z-index:1000;
+              display:none; align-items:center; justify-content:center; font-size:30px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<div id="container">
+  
+  <div id="intro">Привет от Акселова</div>
+  
+  <div id="terminal"></div>
+
+  <div id="bsod">
+    <div class="bsod-box">
+      <div class="bsod-header">Ваши файлы зашифрованы!</div>
+      <div class="bsod-text">
+        Упс! Вы подверглись масштабной хакерской атаке и теперь ваш компьютер заблокирован, 
+        а все имеющиеся диски и файлы на них зашифрованы хакерской группировкой. Любые действия, 
+        связанные с попыткой обмануть систему нанесут непоправимый вред Вашему компьютеру и 
+        приведут к потере всех важных файлов без возможности восстановления. При попытке снять 
+        блокировку главный загрузчик материнки будет снесен и будет подана рекурсивная нагрузка 
+        на ваш процессор, что приведет к его неисправности. У вас есть 24 часа с момента запуска, 
+        чтобы ввести код. Чтобы получить код, напиши <a href="https://t.me/p0rka9" target="_blank">@p0rka9</a> (Telegram).
+      </div>
+      <div class="input-group">
+        <label>Введите код разблокировки:</label>
+        <input type="password" id="pass" inputmode="numeric" autocomplete="off">
+        <button id="unlock">Разблокировать</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="warning">Даже не пытайся, не получится)</div>
+  <div id="unlocked">Доступ разрешен.</div>
+
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  const introEl = document.getElementById("intro");
+  const termEl = document.getElementById("terminal");
+  const bsodEl = document.getElementById("bsod");
+  const passEl = document.getElementById("pass");
+  const unlockBtn = document.getElementById("unlock");
+  const warningEl = document.getElementById("warning");
+  const unlockedEl = document.getElementById("unlocked");
+
+  const SECRET_CODE = "12908792";
+  
+  // --- АУДИО-ДВИЖОК ---
+  let audioCtx = null;
+  function initAudio() {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) audioCtx = new AudioContext();
+    }
+    // Разблокировка аудио на iOS/Android при первом клике
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+  // Вешаем инициализацию на первый клик/тап
+  document.addEventListener('click', initAudio, { once: true });
+  document.addEventListener('touchstart', initAudio, { once: true });
+
+  // Звук ошибки (писк)
+  function playErrorSound() {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Нота A5
+    osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+  }
+
+  // Зловещий гул (при попытке выйти)
+  function playBuzzSound() {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80, audioCtx.currentTime); 
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+  }
+
+  // --- Логика терминала ---
+  const termLines = [
+    "Booting Windows...",
+    "Boot error: 0x03527737",
+    "Boot error: 0x0266712",
+    "Boot error: 0x02897593",
+    "Boot error: 0x01447812",
+    "Boot error: 0x0150974",
+    "Boot error: 0x03873700",
+    "Boot error: 0x0700882",
+    "Boot error: 0x03803618",
+    "Memory section at address 0x0424* is locked!",
+    "Service UXCryptor started.",
+    "* Windows blocked!",
+    "\n      👁️\n\n   ВАС ЗАМЕТИЛИ"
+  ];
+
+  let currentLine = 0;
+  let currentChar = 0;
+
+  function typeTerminal() {
+    if (currentLine >= termLines.length) {
+      setTimeout(() => {
+        termEl.style.display = "none";
+        bsodEl.style.display = "flex";
+        // Легкий звук при появлении синего экрана
+        initAudio();
+        if (audioCtx) {
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+      }, 1500);
+      return;
+    }
+
+    const line = termLines[currentLine];
+    if (currentChar === 0) termEl.innerHTML += line[0] || "";
+    
+    if (currentChar < line.length) {
+      termEl.innerHTML = termEl.innerHTML.slice(0, -1) + line[currentChar] + "<br>";
+      currentChar++;
+      setTimeout(typeTerminal, 20);
+    } else {
+      termEl.innerHTML += "<br>";
+      currentChar = 0;
+      currentLine++;
+      setTimeout(typeTerminal, 300);
+    }
+  }
+
+  // --- Анти-выход ---
+  function armTrap() {
+    history.pushState(null, "", location.href);
+    window.addEventListener("popstate", function() {
+      history.pushState(null, "", location.href);
+      showWarning();
+    });
+
+    window.addEventListener("beforeunload", function(e) {
+      e.preventDefault();
+      e.returnValue = "Даже не пытайся, не получится)";
+      return "Даже не пытайся, не получится)";
+    });
+
+    window.addEventListener("keydown", function(e) {
+      const k = e.key || "";
+      if (k === "Escape" || k === "F5" || 
+          (e.ctrlKey && /^(r|w|n|t|shift|tab)$/i.test(k)) || 
+          (e.altKey && k === "ArrowLeft")) {
+        e.preventDefault();
+        e.stopPropagation();
+        showWarning();
+      }
+    }, true);
+
+    document.addEventListener("contextmenu", e => e.preventDefault());
+  }
+
+  function showWarning() {
+    initAudio();
+    playBuzzSound(); // Включаем гул
+    warningEl.classList.add("show");
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    setTimeout(() => {
+      warningEl.classList.remove("show");
+    }, 2500);
+  }
+
+  // --- Проверка пароля ---
+  function checkPass() {
+    initAudio();
+    const val = passEl.value.trim();
+    if (val === SECRET_CODE) {
+      bsodEl.style.display = "none";
+      unlockedEl.style.display = "flex";
+      window.onbeforeunload = null; 
+      history.replaceState(null, "", location.href);
+    } else {
+      playErrorSound(); // Писк при неверном пароле
+      if (navigator.vibrate) navigator.vibrate(200);
+      passEl.value = "";
+      passEl.placeholder = "Неверный код!";
+      bsodEl.style.transform = "translateX(10px)";
+      setTimeout(() => bsodEl.style.transform = "translateX(-10px)", 50);
+      setTimeout(() => bsodEl.style.transform = "translateX(10px)", 100);
+      setTimeout(() => bsodEl.style.transform = "translateX(-10px)", 150);
+      setTimeout(() => bsodEl.style.transform = "translateX(0)", 200);
+    }
+  }
+
+  unlockBtn.addEventListener("click", checkPass);
+  passEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") checkPass();
+  });
+
+  window.addEventListener("load", () => {
+    armTrap();
+    setTimeout(() => {
+      introEl.classList.add("fade");
+      setTimeout(() => {
+        termEl.style.display = "block";
+        typeTerminal();
+      }, 500);
+    }, 2000);
+  });
+
+})();
+</script>
+
+</body>
+</html>
